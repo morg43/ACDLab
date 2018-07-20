@@ -201,6 +201,12 @@ function Remove-ACDLab
         Connect-AzureRmAccount
     }
 
+    # If an argument is passed to ResourceGroupName we need to pad it regex anchor to prevent accidental deletion
+    if ($PSBoundParameters.ContainsKey('ResourceGroupName'))
+    {
+        $ResourceGroupName = '^' + $ResourceGroupName + '$'
+    }
+
     $resourceGroupsToDelete =  Get-AzureRmResourceGroup | Where-Object -Property ResourceGroupName -Match $ResourceGroupName
 
     $resourceGroupsToDelete | Remove-AzureRmResourceGroup -AsJob -Force
