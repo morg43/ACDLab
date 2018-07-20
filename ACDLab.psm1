@@ -40,20 +40,20 @@ function New-ACDLab
     [CmdletBinding()]
     param
     (
-        [Parameter(Position=1)]
+        [Parameter(Position = 1)]
         [int]
         $LabNumber = 1,
 
-        [Parameter(Position=2)]
-        [ValidateSet('Standard_D4_v3','Standard_D8_v3')]
+        [Parameter(Position = 2)]
+        [ValidateSet('Standard_D4_v3', 'Standard_D8_v3')]
         [string]
         $VMSize = 'Standard_D4s_v3',
 
-        [Parameter(Position=3)]
+        [Parameter(Position = 3)]
         [string]
         $SnapshotResourceGroup = 'parentResourceGroup',
 
-        [Parameter(Position=4)]
+        [Parameter(Position = 4)]
         [string]
         $SnapShotName = 'CyberLabParent'
     )
@@ -98,6 +98,10 @@ function New-ACDLab
 
         New-AzureRmVM -VM $virtualMachine -ResourceGroupName $studentName -Location $snapShot.Location -AsJob
     }
+
+    # Wait until all labs are provisioned and then set auto-shutdown
+    Get-Job | Wait-Job
+    Set-ACDLabAutoShutdown
 }
 
 <#
