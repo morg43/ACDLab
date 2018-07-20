@@ -1,7 +1,7 @@
 ﻿<#
     .SYNOPSIS
         Creates a lab environemnt contained in it's own Azure Resource Group by copying a snapshot VHD from
-        a parent resource group
+        a parent resource group.
 
     .PARAMETER LabNumber
         Specifies the number of labs to create.  The default is 1
