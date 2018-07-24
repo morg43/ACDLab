@@ -1,4 +1,4 @@
-﻿<#
+<#
     .SYNOPSIS
         Creates a lab environemnt contained in it's own Azure Resource Group by copying a snapshot VHD from
         a parent resource group.
@@ -37,23 +37,30 @@
 #>
 function New-ACDLab
 {
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'Default')]
     param
     (
-        [Parameter(Position = 1)]
+        [Parameter(Position = 1, ParameterSetName = 'Default')]
         [int]
         $LabNumber = 1,
 
-        [Parameter(Position = 2)]
+        [Parameter(Position = 1, ParameterSetName = 'SingleInstance')]
+        [string]
+        $LabName,
+
+        [Parameter(Position = 2, ParameterSetName = 'Default')]
+        [Parameter(ParameterSetName = 'SingleInstance')]
         [string]
         $SnapshotResourceGroup = 'parentResourceGroup',
 
-        [Parameter(Position = 3)]
+        [Parameter(Position = 3, ParameterSetName = 'Default')]
+        [Parameter(ParameterSetName = 'SingleInstance')]
         [ValidateSet('Standard_D4_v3', 'Standard_D8_v3')]
         [string]
         $VMSize = 'Standard_D4s_v3',
 
-        [Parameter(Position = 4)]
+        [Parameter(Position = 4, ParameterSetName = 'Default')]
+        [Parameter(ParameterSetName = 'SingleInstance')]
         [string]
         $SnapShotName = 'CyberLabParent'
     )
@@ -66,6 +73,11 @@ function New-ACDLab
         Connect-AzureRmAccount
     }
 
+    if ($PSCmdlet.ParameterSetName -eq 'SingleInstance')
+    {
+        $labNumber = 1
+    }
+
     $labCount = 1..$LabNumber
 
     foreach ($lab in $labCount)
@@ -73,7 +85,15 @@ function New-ACDLab
         # lets try to get the Snapshot first and fail if not found
         $snapShot = Get-AzureRmSnapshot -ResourceGroupName $SnapshotResourceGroup -SnapshotName $SnapShotName -ErrorAction Stop
 
-        $studentName = 'Student' + $lab
+        if ($PSCmdlet.ParameterSetName -eq 'SingleInstance')
+        {
+            $studentName = $LabName
+        }
+        else
+        {
+            $studentName = 'Student' + $lab
+        }
+
         New-AzureRmResourceGroup -Name $studentName -Location EastUS -ErrorAction Stop
 
         $diskConfig = New-AzureRmDiskConfig -Location $snapShot.Location -SourceResourceId $snapShot.Id -CreateOption Copy
@@ -119,6 +139,11 @@ function New-ACDLab
         PS C:\> Set-ACDLabAutoShutdown
 
         This example will apply the auto shutdown policy to all VMs a resource groups that starts with Student.
+
+    .EXAMPLE
+        PS C:\> Set-ACDLabAutoShutdown -ResouceGroupName Student5 -ShutdownTime = 2100
+
+        This example will apply the auto shutdown policu to the VM in the Student5 resource group at 2100
 #>
 function Set-ACDLabAutoShutdown
 {
@@ -127,8 +152,17 @@ function Set-ACDLabAutoShutdown
     (
         [Parameter()]
         [string]
-        $ResourceGroupSuffix = '^Student'
+        $ResourceGroupName = '^Student',
+
+        [Parameter()]
+        [int]
+        $ShutdownTime = 1900
     )
+
+    if ($PSBoundParameters.ContainsKey('ResourceGroupName'))
+    {
+        $ResourceGroupName = '^' + $ResourceGroupName + '$'
+    }
 
     $resourceGroups = Get-AzureRmResourceGroup | Where-Object -Property ResourceGroupName -Match $ResourceGroupSuffix
 
@@ -138,18 +172,17 @@ function Set-ACDLabAutoShutdown
         foreach ($virtualMachine in $virtualMachines)
         {
             $vmName = $virtualMachine.Name
-            $shutdownTime = "1900"
             $shutdownTimezone = "Eastern Standard Time"
             $properties = @{
-                "status"          = "Enabled"
-                "taskType"        = "ComputeVmShutdownTask"
-                "dailyRecurrence" = @{ "time" = $shutdownTime }
-                "timeZoneId"      = $shutdownTimezone
+                "status"               = "Enabled"
+                "taskType"             = "ComputeVmShutdownTask"
+                "dailyRecurrence"      = @{ "time" = $shutdownTime }
+                "timeZoneId"           = $shutdownTimezone
                 "notificationSettings" = @{
-                    "status" = "Disabled"
+                    "status"        = "Disabled"
                     "timeInMinutes" = 30
                 }
-                "targetResourceId" = $virtualMachine.Id
+                "targetResourceId"     = $virtualMachine.Id
             }
 
             $azureRmResourceParameters = @{
