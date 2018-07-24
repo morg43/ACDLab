@@ -378,7 +378,7 @@ function Update-ACDLabSnapshot
 
         [Parameter()]
         [string]
-        $SnapshotName
+        $SnapshotName = 'CyberLabParent'
     )
 
     Write-Warning "To update the lab parent snapshot you must remvoe the old snapshot and recreate a new snapshot."
