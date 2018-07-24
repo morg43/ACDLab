@@ -182,7 +182,15 @@ function Set-ACDLabAutoShutdown
     .EXAMPLE
         PS C:\>Remove-ACDLab
 
-        This example will remove all the ACD training labs
+        Confirm
+        Are you sure you want to remove resource group 'student6'
+        [Y] Yes  [N] No  [S] Suspend  [?] Help (default is "Y"): y
+        True
+
+    .EXAMPLE
+        PS C:\>Remove-ACDLab -Force
+
+        This example will remove all the ACD training labs without interaction
 #>
 function Remove-ACDLab
 {
