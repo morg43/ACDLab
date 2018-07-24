@@ -1,7 +1,7 @@
 ﻿<#
     .SYNOPSIS
         Creates a lab environemnt contained in it's own Azure Resource Group by copying a snapshot VHD from
-        a parent resource group
+        a parent resource group.
 
     .PARAMETER LabNumber
         Specifies the number of labs to create.  The default is 1
@@ -40,20 +40,20 @@ function New-ACDLab
     [CmdletBinding()]
     param
     (
-        [Parameter(Position=1)]
+        [Parameter(Position = 1)]
         [int]
         $LabNumber = 1,
 
-        [Parameter(Position=2)]
-        [ValidateSet('Standard_D4_v3','Standard_D8_v3')]
-        [string]
-        $VMSize = 'Standard_D4s_v3',
-
-        [Parameter(Position=3)]
+        [Parameter(Position = 2)]
         [string]
         $SnapshotResourceGroup = 'parentResourceGroup',
 
-        [Parameter(Position=4)]
+        [Parameter(Position = 3)]
+        [ValidateSet('Standard_D4_v3', 'Standard_D8_v3')]
+        [string]
+        $VMSize = 'Standard_D4s_v3',
+
+        [Parameter(Position = 4)]
         [string]
         $SnapShotName = 'CyberLabParent'
     )
@@ -70,10 +70,11 @@ function New-ACDLab
 
     foreach ($lab in $labCount)
     {
+        # lets try to get the Snapshot first and fail if not found
+        $snapShot = Get-AzureRmSnapshot -ResourceGroupName $SnapshotResourceGroup -SnapshotName $SnapShotName -ErrorAction Stop
+
         $studentName = 'Student' + $lab
         New-AzureRmResourceGroup -Name $studentName -Location EastUS -ErrorAction Stop
-
-        $snapShot = Get-AzureRmSnapshot -ResourceGroupName $SnapshotResourceGroup -SnapshotName $SnapShotName
 
         $diskConfig = New-AzureRmDiskConfig -Location $snapShot.Location -SourceResourceId $snapShot.Id -CreateOption Copy
 
@@ -98,6 +99,10 @@ function New-ACDLab
 
         New-AzureRmVM -VM $virtualMachine -ResourceGroupName $studentName -Location $snapShot.Location -AsJob
     }
+
+    # Wait until all labs are provisioned and then set auto-shutdown
+    Get-Job | Wait-Job
+    Set-ACDLabAutoShutdown
 }
 
 <#
@@ -181,12 +186,16 @@ function Set-ACDLabAutoShutdown
 #>
 function Remove-ACDLab
 {
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess=$true)]
     param
     (
         [Parameter()]
         [string]
-        $ResourceGroupName = '^Student'
+        $ResourceGroupName = '^Student',
+
+        [Parameter()]
+        [switch]
+        $Force
     )
 
     $azureContext = Get-AzureRmContext
@@ -197,9 +206,27 @@ function Remove-ACDLab
         Connect-AzureRmAccount
     }
 
-    $resourceGroupsToDelete =  Get-AzureRmResourceGroup | Where-Object -Property ResourceGroupName -Match $ResourceGroupName
+    # If an argument is passed to ResourceGroupName we need to pad it with regex anchors to prevent accidental deletion
+    if ($PSBoundParameters.ContainsKey('ResourceGroupName'))
+    {
+        $ResourceGroupName = '^' + $ResourceGroupName + '$'
+    }
 
-    $resourceGroupsToDelete | Remove-AzureRmResourceGroup -AsJob -Force
+    $resourceGroupsToDelete = Get-AzureRmResourceGroup | Where-Object -Property ResourceGroupName -Match $ResourceGroupName
+
+    foreach ($resourceGroup in $resourceGroupsToDelete)
+    {
+        $parameters = @{
+            ResourceGroupName = $resourceGroup.ResourceGroupName
+        }
+        if ($Force)
+        {
+            $parameters.AsJob = $true
+            $parameters.Force = $true
+        }
+
+        Remove-AzureRmResourceGroup @parameters
+    }
 }
 
 <#
@@ -278,7 +305,7 @@ function Get-ACDLabDesktopFile
         This examples shows how to create a new snapshot with default parameter values.
 
     .EXAMPLE
-        PS C:\>New-ACDLabSnapshot -ResourceGroupName KaliLab -VMName KaliLab
+        PS C:\>New-ACDLabSnapshot -ResourceGroupName KaliLab -VMName KaliLab -SnapshotName KaliLabParent
 
         This example creates a VHD snapshot from the KaliLab resource group,
         with the KaliParent VM
@@ -294,14 +321,69 @@ function New-ACDLabSnapshot
 
         [Parameter()]
         [string]
-        $VMName = 'LabParent'
+        $VMName = 'LabParent',
+
+        [Parameter()]
+        [string]
+        $SnapshotName = 'CyberLabParent'
     )
 
     $vm = Get-AzureRmVM -ResourceGroupName $ResourceGroupName -Name $VMName
 
     $snapShot = New-AzureRmSnapshotConfig -SourceUri $vm.StorageProfile.OsDisk.ManagedDisk.Id -Location EastUS -CreateOption Copy
 
-    New-AzureRmSnapshot -Snapshot $snapShot -SnapshotName CyberLabParent -ResourceGroupName $ResourceGroupName
+    New-AzureRmSnapshot -Snapshot $snapShot -SnapshotName $SnapshotName -ResourceGroupName $ResourceGroupName
+}
+
+<#
+    .SYNOPSIS
+        Update the ACD lab snapshot that acts as the parent image the labs are created from
+
+    .PARAMETER ResourceGroupName
+        Specifies the resource group name the parent VHD is in.
+        The default is parentResourceGroup.
+
+    .PARAMETER VMName
+        Specifies the name of the parent VM the snapshot is taken from.
+        The default is LabParent
+
+    .PARAMETER SnapshotName
+        Specifies the name of the Snapshot being created.
+        The default is CyberLabParent
+
+    .EXAMPLE
+        PS C:\>Update-ACDLabSnapshot
+
+        This example updates the VHD snapshot with defualt values. The parentResourceGroup resource group with VMName LabParent.
+
+    .EXAMPLE
+        PS C:\>Update-ACDLabSnapshot -ResourceGroupName KaliLab -VMName KaliLab -SnapshotName KaliLabParent
+
+        This example updates the VHD snapshot from the KaliLab resource group,
+        with the KaliParent VM
+
+#>
+function Update-ACDLabSnapshot
+{
+    [CmdletBinding(SupportsShouldProcess=$true)]
+    param
+    (
+        [Parameter()]
+        [string]
+        $ResourceGroupName = 'parentResourceGroup',
+
+        [Parameter()]
+        [string]
+        $VMName = 'LabParent',
+
+        [Parameter()]
+        [string]
+        $SnapshotName = 'CyberLabParent'
+    )
+
+    Write-Warning "To update the lab parent snapshot you must remvoe the old snapshot and recreate a new snapshot."
+    Remove-AzureRmSnapshot -ResourceGroupName $ResourceGroupName -SnapshotName $SnapshotName
+    New-ACDLabSnapshot -ResourceGroupName $ResourceGroupName -VMName $VMName -SnapshotName $SnapshotName
 }
 
 <#
