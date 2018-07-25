@@ -4,7 +4,10 @@
         a parent resource group.
 
     .PARAMETER LabNumber
-        Specifies the number of labs to create.  The default is 1
+        Specifies the number of labs to create.  The default is 1.
+
+    .PARAMETER LabName
+        Speciies the name of a lab when creating a single instance.
 
     .PARAMETER VMSize
         Specifies the size of the Azure VM.  Possible choices are Standard_D4_v3 and Standard_D8_v3.
@@ -34,6 +37,11 @@
         PS C:\>New-ACDLab -SnapshotResourceGroup parentKaliLab -SnapShotName KaliLab
 
         This example demonstrates creating a training lab using a custom (non-default) parent VHD
+
+    .EXAMPLE
+        PS C:\>New-ACDLab -LabName Student8
+
+        This example demonstrates create a single training lab with the name of Student8
 #>
 function New-ACDLab
 {
