@@ -154,7 +154,7 @@ function New-ACDLab
     .EXAMPLE
         PS C:\> Set-ACDLabAutoShutdown -ResouceGroupName Student5 -ShutdownTime 2100
 
-        This example will apply the auto shutdown policu to the VM in the Student5 resource group at 2100 (9 PM)
+        This example will apply the auto shutdown policy to the VM in the Student5 resource group at 2100 (9 PM)
 #>
 function Set-ACDLabAutoShutdown
 {
@@ -220,10 +220,13 @@ function Set-ACDLabAutoShutdown
         A regular expression is used to filter the desired resource groups to apply the auto shutdown policy to.
         The default is ^Student, which will apply the policy to all resource groups the start with "Student".
 
+    .PARAMETER Force
+        Use when it is intened to remove all labs without interaction.
+
     .EXAMPLE
         PS C:\> Remove-ACDLab -ResourceGroupName Student3
 
-        This example will remove the lab in the Student3 resource group
+        This example will remove the lab in the Student3 resource group.
 
     .EXAMPLE
         PS C:\>Remove-ACDLab
@@ -236,7 +239,7 @@ function Set-ACDLabAutoShutdown
     .EXAMPLE
         PS C:\>Remove-ACDLab -Force
 
-        This example will remove all the ACD training labs without interaction
+        This example will remove all the ACD training labs without interaction.
 #>
 function Remove-ACDLab
 {
