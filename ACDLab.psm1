@@ -120,7 +120,7 @@ function New-ACDLab
         New-AzureRmVM -VM $virtualMachine -ResourceGroupName $studentName -Location $snapShot.Location -AsJob
     }
 
-    # Wait until all labs are provisioned and then set auto-shutdown
+    # We have to wait for the VMs to be provisioned or Set-ACDLabAutoShutdown will fail
     Get-Job | Wait-Job
     Set-ACDLabAutoShutdown
 }
@@ -135,15 +135,18 @@ function New-ACDLab
         A regular expression is used to filter the desired resource groups to apply the auto shutdown policy to.
         The default is ^Student, which will apply the policy to all resource groups the start with "Student".
 
+    .PARAMETER ShutdownTimeZone
+        Specifies the time zone the VM is in. Default is Eastern Standard Time.
+
     .EXAMPLE
         PS C:\> Set-ACDLabAutoShutdown
 
         This example will apply the auto shutdown policy to all VMs a resource groups that starts with Student.
 
     .EXAMPLE
-        PS C:\> Set-ACDLabAutoShutdown -ResouceGroupName Student5 -ShutdownTime = 2100
+        PS C:\> Set-ACDLabAutoShutdown -ResouceGroupName Student5 -ShutdownTime 2100
 
-        This example will apply the auto shutdown policu to the VM in the Student5 resource group at 2100
+        This example will apply the auto shutdown policu to the VM in the Student5 resource group at 2100 (9 PM)
 #>
 function Set-ACDLabAutoShutdown
 {
@@ -156,7 +159,11 @@ function Set-ACDLabAutoShutdown
 
         [Parameter()]
         [int]
-        $ShutdownTime = 1900
+        $ShutdownTime = 1900,
+
+        [Parameter()]
+        [string]
+        $ShutdownTimeZone = 'Eastern Standard Time'
     )
 
     if ($PSBoundParameters.ContainsKey('ResourceGroupName'))
@@ -164,7 +171,7 @@ function Set-ACDLabAutoShutdown
         $ResourceGroupName = '^' + $ResourceGroupName + '$'
     }
 
-    $resourceGroups = Get-AzureRmResourceGroup | Where-Object -Property ResourceGroupName -Match $ResourceGroupSuffix
+    $resourceGroups = Get-AzureRmResourceGroup | Where-Object -Property ResourceGroupName -Match $ResourceGroupName
 
     foreach ($resourceGroup in $resourceGroups.ResourceGroupName)
     {
@@ -172,7 +179,6 @@ function Set-ACDLabAutoShutdown
         foreach ($virtualMachine in $virtualMachines)
         {
             $vmName = $virtualMachine.Name
-            $shutdownTimezone = "Eastern Standard Time"
             $properties = @{
                 "status"               = "Enabled"
                 "taskType"             = "ComputeVmShutdownTask"
@@ -195,7 +201,6 @@ function Set-ACDLabAutoShutdown
             New-AzureRmResource @azureRmResourceParameters
         }
     }
-
 }
 
 <#
@@ -402,7 +407,6 @@ function New-ACDLabSnapshot
 
         This example updates the VHD snapshot from the KaliLab resource group,
         with the KaliParent VM
-
 #>
 function Update-ACDLabSnapshot
 {
@@ -444,7 +448,6 @@ function Update-ACDLabSnapshot
         PS C:\>Stop-ACDLab
 
         When ran without arguments (default) all training labs will be turned off
-
 #>
 function Stop-ACDLab
 {
